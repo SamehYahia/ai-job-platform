@@ -10,3 +10,11 @@ def test_liveness_returns_ok() -> None:
 
     assert response.status_code == 200
     assert response.json() == {"status": "ok"}
+
+
+def test_readiness() -> None:
+    """Readiness succeeds when the database accepts queries."""
+    response = client.get("/health/ready")
+
+    assert response.status_code == 200
+    assert response.json() == {"status": "ready"}

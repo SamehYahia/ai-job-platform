@@ -3,3 +3,4 @@
 httpx2==2.9.1
 pytest==9.1.1
 ruff==0.16.0
+alembic==1.19.1
