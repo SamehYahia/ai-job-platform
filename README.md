@@ -1,140 +1,251 @@
-# P01 — AI Job Platform
+# P01 - AI Job Platform
 
-> **Status:** Phase 0 — Project Foundation  
-> **Current state:** In Progress  
+> **Status:** Phase 1 completed - Containerization is next  
+> **Current state:** Backend MVP implemented and tested  
 > **Project type:** DevOps-first portfolio project  
 > **Production readiness:** Not production-ready
 
 ## Overview
 
-The AI Job Platform is a production-oriented DevOps portfolio project built around a minimal job-matching application.
+AI Job Platform is a DevOps portfolio project built around a small but realistic
+job-matching API.
 
-The application is a realistic workload for practicing infrastructure automation, secure software delivery, Kubernetes operations, observability, reliability, and disaster recovery.
+The application provides a workload for practicing containerization, CI/CD,
+DevSecOps, infrastructure automation, Kubernetes operations, observability,
+reliability, and disaster recovery.
 
-Application development is intentionally limited. The primary focus is designing, deploying, securing, operating, monitoring, and recovering the platform.
+Application functionality remains intentionally focused so the project can
+demonstrate how a service is built, tested, secured, deployed, and operated.
 
-## Business Workload
+## Implemented Workload
 
-The planned application will:
+The current backend can:
 
-- Accept synthetic job descriptions through an API.
-- Store jobs and synthetic candidate profiles.
-- Compare candidate skills with job requirements.
-- Return a deterministic and explainable match result.
-- Queue background analysis tasks.
-- Expose health, readiness, and metrics endpoints.
+- Accept synthetic job and candidate profiles through a REST API.
+- Normalize skill names to produce consistent comparisons.
+- Calculate deterministic and explainable match results.
+- Store jobs, candidates, and match results through SQLAlchemy.
+- Manage database schema changes with Alembic.
+- Reuse candidate profiles without creating duplicate profile IDs.
+- Expose liveness and database readiness endpoints.
+- Validate behavior using unit and integration tests.
 
-Only synthetic data will be used. Real resumes, contact information, and automatic job applications are outside the project scope.
+Only synthetic data is used. Real resumes, personal information, and automatic
+job applications are outside the current scope.
 
-## Primary Engineering Goals
-
-The project is designed to demonstrate:
-
-- Professional Git and GitHub workflows.
-- Secure container image creation.
-- Local integration using Docker Compose.
-- Continuous integration using GitHub Actions.
-- DevSecOps and software supply-chain controls.
-- Infrastructure as Code using Terraform.
-- AWS infrastructure and Amazon EKS.
-- Kubernetes workload packaging using Helm.
-- GitOps deployment using Argo CD.
-- Metrics, logs, traces, dashboards, and alerts.
-- SLI, SLO, error-budget, and incident-response practices.
-- Backup restoration and disaster-recovery validation.
-- Cloud cost controls and safe resource teardown.
-
-## Planned Delivery Flow
+## Current Architecture
 
 ```mermaid
 flowchart TB
-    DEV["Developer"] --> PR["Protected GitHub pull request"]
-    PR --> CI["Tests and security gates"]
-    CI --> IMAGE["Immutable container image"]
-    IMAGE --> ECR["Amazon ECR"]
-    CI --> GITOPS["GitOps update pull request"]
-    GITOPS --> ARGO["Argo CD"]
-    ARGO --> EKS["Amazon EKS"]
+    CLIENT["API Client"] --> API["FastAPI"]
+    API --> MATCHER["Matching Service"]
+    API --> REPOSITORY["Repository Layer"]
+    REPOSITORY --> ORM["SQLAlchemy ORM"]
+    ORM --> DATABASE[("PostgreSQL")]
+    ALEMBIC["Alembic"] --> DATABASE
 ```
 
-GitHub Actions will authenticate to AWS using OpenID Connect rather than long-lived AWS access keys.
+SQLite is used for isolated automated tests. PostgreSQL is the target runtime
+database and will be validated through Docker Compose in Phase 2.
 
-## Planned Technology Stack
+## Technology Stack
 
 | Area | Technology | Status |
 | --- | --- | --- |
-| API workload | FastAPI | Planned |
-| Database | PostgreSQL | Planned |
-| Queue | Redis | Planned |
-| Worker | Python background worker | Planned |
-| Containers | Docker and Docker Compose | Planned |
-| CI | GitHub Actions | Planned |
-| Security scanning | Gitleaks and Trivy | Planned |
+| API | FastAPI | Implemented |
+| Validation | Pydantic | Implemented |
+| Matching | Deterministic Python service | Implemented |
+| Persistence | SQLAlchemy 2 | Implemented |
+| Migrations | Alembic | Implemented |
+| Runtime database | PostgreSQL with Psycopg | Integration next |
+| Test database | In-memory SQLite | Implemented |
+| Testing | Pytest and FastAPI TestClient | Implemented |
+| Code quality | Ruff | Implemented |
+| Containers | Docker and Docker Compose | Next |
+| CI/CD | GitHub Actions | Planned |
+| Security | Gitleaks and Trivy | Planned |
 | Infrastructure | Terraform and AWS | Planned |
-| Container registry | Amazon ECR | Planned |
 | Kubernetes | Local Kubernetes and Amazon EKS | Planned |
 | Packaging | Helm | Planned |
 | GitOps | Argo CD | Planned |
-| Metrics | Prometheus | Planned |
-| Dashboards | Grafana | Planned |
-| Logging and tracing | OpenTelemetry with justified backends | Planned |
+| Observability | Prometheus and Grafana | Planned |
 
-Tools will be introduced progressively. A tool will not be added only to increase the number of technologies listed in the project.
+## API Endpoints
 
-## Project Roadmap
+| Method | Endpoint | Purpose |
+| --- | --- | --- |
+| `GET` | `/health/live` | Confirms that the API process is running |
+| `GET` | `/health/ready` | Confirms that the database accepts queries |
+| `POST` | `/api/v1/matches/evaluate` | Evaluates and persists a match |
+| `GET` | `/docs` | Opens the interactive OpenAPI documentation |
 
-- [ ] Phase 0 — Project Foundation
-- [ ] Phase 1 — Application Baseline
-- [ ] Phase 2 — Containers and Local Operations
-- [ ] Phase 3 — Continuous Integration and Security
-- [ ] Phase 4 — Terraform and AWS Foundation
-- [ ] Phase 5 — Local Kubernetes Baseline
-- [ ] Phase 6 — Local GitOps
-- [ ] Phase 7 — Temporary Amazon EKS Environment
-- [ ] Phase 8 — Observability and SRE
-- [ ] Phase 9 — Reliability and Disaster Recovery
-- [ ] Phase 10 — Portfolio and Interview Evidence
+## Match Request Example
 
-A phase is completed only after its acceptance criteria and required evidence have been reviewed.
+```bash
+curl -X POST http://127.0.0.1:8000/api/v1/matches/evaluate \
+  -H "Content-Type: application/json" \
+  -d '{
+    "job": {
+      "title": "Junior DevOps Engineer",
+      "required_skills": ["AWS", "Docker", "Kubernetes"]
+    },
+    "candidate": {
+      "profile_id": "candidate-001",
+      "skills": ["AWS", "Docker"]
+    }
+  }'
+```
+
+The response includes:
+
+- `score_percent`
+- `matched_skills`
+- `missing_skills`
+- `explanation`
+
+Skills are normalized before comparison and persistence, so values such as
+`AWS`, `aws`, and ` AWS ` are treated consistently.
+
+## Local Development
+
+### 1. Create the environment
+
+```bash
+python -m venv .venv
+source .venv/bin/activate
+python -m pip install --upgrade pip
+python -m pip install -r requirements-dev.txt
+```
+
+### 2. Configure a local database
+
+Use persistent SQLite before Docker Compose is added:
+
+```bash
+export DATABASE_URL="sqlite+pysqlite:///./ai_job_platform.db"
+```
+
+The PostgreSQL URL format used by the containerized environment will be:
+
+```text
+postgresql+psycopg://USER:PASSWORD@HOST:5432/DATABASE
+```
+
+### 3. Apply migrations
+
+```bash
+python -m alembic upgrade head
+```
+
+### 4. Start the API
+
+```bash
+python -m uvicorn app.main:app --reload
+```
+
+The API is available at `http://127.0.0.1:8000`, with interactive documentation
+at `http://127.0.0.1:8000/docs`.
+
+## Quality Checks
+
+```bash
+# Check installed dependency compatibility.
+python -m pip check
+
+# Run linting and formatting validation.
+python -m ruff check app tests alembic
+python -m ruff format --check app tests alembic
+
+# Run the complete test suite.
+python -m pytest -W error::DeprecationWarning
+```
+
+The current test suite contains six tests covering health endpoints,
+deterministic matching, skill normalization, database models, and persistence.
 
 ## Repository Structure
 
 ```text
 .
-├── .github/
-│   └── pull_request_template.md
+├── alembic/
+│   ├── versions/
+│   ├── env.py
+│   └── script.py.mako
+├── app/
+│   ├── api/routes/
+│   ├── core/
+│   ├── db/
+│   ├── models/
+│   ├── repositories/
+│   ├── schemas/
+│   ├── services/
+│   └── main.py
 ├── docs/
 │   ├── adr/
-│   │   └── 0001-repository-strategy.md
 │   └── charter.md
-├── .gitignore
-├── LICENSE
-├── README.md
-└── SECURITY.md
+├── tests/
+│   ├── conftest.py
+│   ├── test_health.py
+│   ├── test_matches.py
+│   └── test_persistence.py
+├── alembic.ini
+├── pyproject.toml
+├── requirements-dev.txt
+├── requirements.txt
+├── SECURITY.md
+└── README.md
 ```
 
-Additional directories will be created only when their first implemented and validated files are introduced.
+## Delivery Roadmap
+
+- [x] Phase 0 - Project foundation and governance
+- [x] Phase 1 - FastAPI application baseline
+- [x] Phase 1 - Deterministic job matching
+- [x] Phase 1 - Persistence models and migrations
+- [x] Phase 1 - Liveness, readiness, and integration tests
+- [ ] Phase 2 - Docker and local PostgreSQL operations
+- [ ] Phase 3 - GitHub Actions and security controls
+- [ ] Phase 4 - Terraform and AWS foundation
+- [ ] Phase 5 - Local Kubernetes baseline
+- [ ] Phase 6 - Helm packaging and local GitOps
+- [ ] Phase 7 - Temporary Amazon EKS environment
+- [ ] Phase 8 - Observability and SRE controls
+- [ ] Phase 9 - Reliability and disaster recovery
+- [ ] Phase 10 - Portfolio evidence and interview documentation
+
+A phase is complete only after its acceptance criteria and validation evidence
+have been reviewed.
+
+## Planned Delivery Flow
+
+```mermaid
+flowchart TB
+    DEV["Developer"] --> PR["Protected GitHub PR"]
+    PR --> CI["Tests and security gates"]
+    CI --> IMAGE["Immutable image"]
+    IMAGE --> ECR["Amazon ECR"]
+    CI --> GITOPS["GitOps update PR"]
+    GITOPS --> ARGO["Argo CD"]
+    ARGO --> EKS["Amazon EKS"]
+```
+
+GitHub Actions will authenticate to AWS through OpenID Connect instead of
+long-lived AWS access keys.
 
 ## Security and Cost Boundaries
 
-- Secrets must not be stored in Git, images, logs, or Terraform configuration.
-- Real candidate or personal data must not be used.
-- AWS access will use short-lived identity and least-privileged IAM.
-- No EKS cluster, NAT Gateway, load balancer, RDS instance, or ElastiCache resource will be created without an approved cost estimate and teardown plan.
+- Secrets must not be committed to Git, container images, logs, or Terraform.
+- Real candidate data and automatic job applications are not currently used.
+- AWS access will use short-lived identities and least-privileged IAM policies.
 - Security findings will not be silently ignored.
-- Backups will not be considered successful until restoration is tested.
-
-## Current Progress
-
-| Phase | Task | Status |
-| --- | --- | --- |
-| Phase 0 | Repository initialization | Completed |
-| Phase 0 | Project documentation baseline | In Progress |
-| Phase 1 | Application implementation | Not Started |
+- Cloud resources require a cost estimate and documented teardown procedure.
+- Backups are not considered successful until restoration is tested.
 
 ## Documentation
 
-Project decisions, validation evidence, operational procedures, security controls, and recovery exercises will be documented progressively as they are implemented and tested.
+Architecture decisions and project boundaries are recorded under `docs/`.
+Operational runbooks, validation evidence, incident exercises, and recovery
+procedures will be added as their related phases are implemented.
 
 Documentation will not claim unfinished work as completed.
 
