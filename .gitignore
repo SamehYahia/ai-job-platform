@@ -8,7 +8,7 @@ __pycache__/
 htmlcov/
 dist/
 build/
-
+.ruff_cache/
 # Virtual environments
 .venv/
 venv/
