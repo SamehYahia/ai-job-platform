@@ -9,7 +9,7 @@ on:
     branches:
       - main
 
-# Follow least privilege: this workflow only needs to read repository contents.
+# Follow least privilege: jobs only need permission to read repository contents.
 permissions:
   contents: read
 
@@ -52,6 +52,62 @@ jobs:
       - name: Check Ruff formatting
         run: ruff format --check .
 
-      # Run the complete current Python test suite.
-      - name: Run Pytest
-        run: pytest
+      # Keep fast tests independent from external service containers.
+      - name: Run fast Pytest suite
+        run: python -m pytest -m "not integration"
+
+  postgres-integration:
+    name: PostgreSQL Integration
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+
+    services:
+      postgres:
+        # Match the PostgreSQL major version used by Docker Compose.
+        image: postgres:18-alpine
+        env:
+          POSTGRES_DB: ai_job_platform_test
+          POSTGRES_USER: postgres
+
+          # This credential belongs only to the disposable CI service container.
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d ai_job_platform_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      # Check out the exact repository revision that triggered this workflow.
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # Run migrations and tests with the project's supported Python version.
+      - name: Set up Python 3.12
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: |
+            requirements.txt
+            requirements-dev.txt
+
+      # Psycopg and Alembic are installed through the existing dependency files.
+      - name: Install dependencies
+        run: python -m pip install --requirement requirements-dev.txt
+
+      # Build the test schema through the same migration path used at runtime.
+      - name: Apply Alembic migrations
+        env:
+          DATABASE_URL: postgresql+psycopg://postgres:postgres@localhost:5432/ai_job_platform_test
+        run: python -m alembic upgrade head
+
+      # The test enforces PostgreSQL and refuses databases without the _test suffix.
+      - name: Run PostgreSQL integration test
+        env:
+          TEST_DATABASE_URL: postgresql+psycopg://postgres:postgres@localhost:5432/ai_job_platform_test
+        run: python -m pytest -m integration
