@@ -111,3 +111,61 @@ jobs:
         env:
           TEST_DATABASE_URL: postgresql+psycopg://postgres:postgres@localhost:5432/ai_job_platform_test
         run: python -m pytest -m integration
+
+  docker-image:
+    name: Docker Image
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+
+    # These values belong only to disposable CI containers.
+    env:
+      COMPOSE_PROJECT_NAME: ai-job-platform-ci
+      POSTGRES_DB: ai_job_platform_ci
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres-ci-only
+
+    steps:
+      # Check out the exact repository revision that triggered this workflow.
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # Detect invalid Compose syntax and unresolved required variables.
+      - name: Validate Docker Compose configuration
+        run: docker compose config --quiet
+
+      # Build the runtime image from the repository Dockerfile.
+      - name: Build application image
+        run: docker compose build --pull app
+
+      # Start the complete stack and wait for all health checks to pass.
+      - name: Start application stack
+        run: docker compose up --detach --wait --wait-timeout 120
+
+      # Verify the API process and its PostgreSQL dependency.
+      - name: Verify application health
+        run: |
+          scheme="http"
+          address="127.0.0.1:8000"
+          base_url="${scheme}://${address}"
+          curl --fail --silent --show-error --write-out '\n' \
+            "${base_url}/health/live"
+          curl --fail --silent --show-error --write-out '\n' \
+            "${base_url}/health/ready"
+
+      # Prove that the application process does not run as root.
+      - name: Verify non-root execution
+        run: |
+          docker compose exec -T app python -c \
+            "import os; assert os.geteuid() == 10001, os.geteuid(); print(os.geteuid())"
+
+      # Preserve diagnostics when any earlier validation step fails.
+      - name: Show container logs on failure
+        if: failure()
+        run: docker compose logs --no-color
+
+      # Remove disposable containers, networks, and database data on every outcome.
+      - name: Clean up Docker resources
+        if: always()
+        run: docker compose down --volumes --remove-orphans
