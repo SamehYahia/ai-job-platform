@@ -27,3 +27,9 @@ Do not include real credentials, personal data, or actively exploitable secrets.
 - Critical and High findings require remediation or a documented exception.
 - AWS authentication must use short-lived credentials.
 - Suspected credential exposure requires immediate revocation and rotation.
+
+## Security Controls
+
+Implementation details for CI security gates, vulnerability scanning, secret
+scanning, branch protection, and rollback procedures are documented in
+[docs/security.md](docs/security.md).
