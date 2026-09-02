@@ -9,9 +9,13 @@ on:
     branches:
       - main
 
-# Follow least privilege: jobs only need permission to read repository contents.
+  # Allow an authorized engineer to run a full-history baseline scan.
+  workflow_dispatch:
+
+# Follow least privilege: jobs only need read access.
 permissions:
   contents: read
+  pull-requests: read
 
 jobs:
   quality:
@@ -169,3 +173,29 @@ jobs:
       - name: Clean up Docker resources
         if: always()
         run: docker compose down --volumes --remove-orphans
+
+  secret-scan:
+    name: Secret Scan
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+
+    steps:
+      # Full history is required for baseline and commit-range secret scanning.
+      - name: Checkout complete Git history
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      # Detect hardcoded secrets using pinned action and scanner versions.
+      - name: Scan repository for secrets
+        uses: gitleaks/gitleaks-action@e0c47f4f8be36e29cdc102c57e68cb5cbf0e8d1e # v3.0.0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITLEAKS_VERSION: "8.30.1"
+
+          # Preserve least privilege by avoiding PR write access.
+          GITLEAKS_ENABLE_COMMENTS: "false"
+
+          # Avoid retaining secret-finding metadata as a downloadable artifact.
+          GITLEAKS_ENABLE_UPLOAD_ARTIFACT: "false"
