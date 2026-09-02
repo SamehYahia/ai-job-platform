@@ -142,6 +142,20 @@ jobs:
       # Build the runtime image from the repository Dockerfile.
       - name: Build application image
         run: docker compose build --pull app
+              # Scan the final runtime image before starting any containers.
+      - name: Scan application image with Trivy
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          scan-type: image
+          image-ref: ai-job-platform-api:local
+          scanners: vuln,secret
+          vuln-type: os,library
+          severity: HIGH,CRITICAL
+          ignore-unfixed: "true"
+          exit-code: "1"
+          format: table
+          version: "v0.74.0"
+          cache: "true"
 
       # Start the complete stack and wait for all health checks to pass.
       - name: Start application stack
@@ -173,6 +187,33 @@ jobs:
       - name: Clean up Docker resources
         if: always()
         run: docker compose down --volumes --remove-orphans
+
+  trivy-filesystem:
+    name: Trivy Filesystem
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+
+    steps:
+      # Check out the exact repository revision being validated.
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # Detect vulnerable application dependencies and IaC/container misconfigurations.
+      - name: Scan repository with Trivy
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          scan-type: fs
+          scan-ref: .
+          scanners: vuln,misconfig
+          vuln-type: library
+          severity: HIGH,CRITICAL
+          ignore-unfixed: "false"
+          exit-code: "1"
+          format: table
+          version: "v0.74.0"
+          cache: "true"
 
   secret-scan:
     name: Secret Scan
