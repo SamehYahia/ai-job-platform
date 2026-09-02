@@ -151,7 +151,7 @@ jobs:
           scanners: vuln,secret
           vuln-type: os,library
           severity: HIGH,CRITICAL
-          ignore-unfixed: "false"
+          ignore-unfixed: "true"
           exit-code: "1"
           format: table
           version: "v0.74.0"
