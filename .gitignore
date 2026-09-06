@@ -37,3 +37,6 @@ crash.log
 # Logs and temporary files
 *.log
 tmp/
+# Terraform plan files
+*.tfplan
+tfplan
