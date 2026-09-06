@@ -13,7 +13,9 @@ resource "aws_s3_bucket_versioning" "terraform_state" {
     status = "Enabled"
   }
 }
-
+# SSE-S3 is intentionally used for this portfolio environment.
+# A customer-managed KMS key is not required by the current security or compliance requirements.
+# trivy:ignore:AWS-0132
 resource "aws_s3_bucket_server_side_encryption_configuration" "terraform_state" {
   bucket = aws_s3_bucket.terraform_state.id
 
