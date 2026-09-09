@@ -240,3 +240,79 @@ jobs:
 
           # Avoid retaining secret-finding metadata as a downloadable artifact.
           GITLEAKS_ENABLE_UPLOAD_ARTIFACT: "false"
+
+  publish-image:
+    name: Publish Image
+
+    # AWS access is allowed only after code reaches the protected main branch.
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+
+    # Do not publish unless every existing quality and security gate succeeds.
+    needs:
+      - quality
+      - postgres-integration
+      - docker-image
+      - trivy-filesystem
+      - secret-scan
+
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+
+    # OIDC permission is limited to this job only.
+    permissions:
+      contents: read
+      id-token: write
+
+    env:
+      AWS_REGION: us-east-1
+      ECR_REPOSITORY: ai-job-platform-dev-api
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Configure AWS credentials through OIDC
+        uses: aws-actions/configure-aws-credentials@e6de054238d6b7531b4efff3b6587d9aade6a06c # v6.2.3
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+          role-duration-seconds: 900
+          role-session-name: gha-ecr-${{ github.run_id }}
+          mask-aws-account-id: true
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@03f1aad4c6c7ffd436567f42f9384779290529bd # v2.1.7
+
+      - name: Build immutable application image
+        env:
+          REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          docker build \
+            --pull \
+            --tag "${REGISTRY}/${ECR_REPOSITORY}:${IMAGE_TAG}" \
+            .
+
+      - name: Scan image before publishing
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          scan-type: image
+          image-ref: ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:${{ github.sha }}
+          scanners: vuln,secret
+          vuln-type: os,library
+          severity: HIGH,CRITICAL
+          ignore-unfixed: "true"
+          exit-code: "1"
+          format: table
+          version: "v0.74.0"
+          cache: "true"
+
+      - name: Push immutable image to Amazon ECR
+        env:
+          REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          docker push "${REGISTRY}/${ECR_REPOSITORY}:${IMAGE_TAG}"
