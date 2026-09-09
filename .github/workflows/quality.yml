@@ -142,7 +142,8 @@ jobs:
       # Build the runtime image from the repository Dockerfile.
       - name: Build application image
         run: docker compose build --pull app
-              # Scan the final runtime image before starting any containers.
+
+      # Scan the final runtime image before starting any containers.
       - name: Scan application image with Trivy
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
@@ -234,12 +235,36 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITLEAKS_VERSION: "8.30.1"
-
-          # Preserve least privilege by avoiding PR write access.
           GITLEAKS_ENABLE_COMMENTS: "false"
-
-          # Avoid retaining secret-finding metadata as a downloadable artifact.
           GITLEAKS_ENABLE_UPLOAD_ARTIFACT: "false"
+
+  helm-validation:
+    name: Helm Validation
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Helm
+        uses: azure/setup-helm@1a275c3b69536ee54be43f2070a358922e12c8d4 # v4.3.1
+        with:
+          version: v3.21.2
+
+      - name: Lint Helm chart
+        run: helm lint --strict deploy/helm/ai-job-platform
+
+      - name: Render Helm manifests
+        run: |
+          helm template \
+            ai-job-platform \
+            deploy/helm/ai-job-platform \
+            > /tmp/ai-job-platform-rendered.yaml
+
+          test -s /tmp/ai-job-platform-rendered.yaml
 
   publish-image:
     name: Publish Image
@@ -254,6 +279,7 @@ jobs:
       - docker-image
       - trivy-filesystem
       - secret-scan
+      - helm-validation
 
     runs-on: ubuntu-24.04
     timeout-minutes: 15
