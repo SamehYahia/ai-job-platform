@@ -2,118 +2,235 @@
 
 [![CI Quality Gates](https://github.com/SamehYahia/ai-job-platform/actions/workflows/quality.yml/badge.svg)](https://github.com/SamehYahia/ai-job-platform/actions/workflows/quality.yml)
 
-> **Status:** Phase 3 completed - Terraform and AWS foundation is next  
-> **Current state:** Containerized FastAPI backend with PostgreSQL, CI quality gates, and security scanning  
-> **Project type:** DevOps-first portfolio project  
-> **Production readiness:** Not production-ready
+> **Status:** Phase 5 in progress - the AWS and EKS foundation is verified; workload deployment is next<br>
+> **Current state:** FastAPI and PostgreSQL, secure CI, GitHub OIDC and ECR publishing, Helm packaging, and a Terraform-managed ephemeral Amazon EKS 1.35 environment<br>
+> **Project type:** DevOps-first portfolio project<br>
+> **Production readiness:** Not production-ready - the EKS environment is intentionally temporary and the application has not yet been deployed to it
 
 ## Overview
 
-AI Job Platform is a DevOps-focused portfolio project built around a small but
-realistic job-matching API.
+AI Job Platform is a DevOps-focused portfolio project built around a small,
+realistic job-matching API. The application is intentionally focused so the
+repository can demonstrate how a service is built, tested, secured, packaged,
+and progressively delivered through a production-oriented engineering
+lifecycle.
 
-The application provides a workload for practicing and demonstrating:
+The verified platform currently includes:
 
-- Application containerization
-- CI/CD engineering
-- DevSecOps controls
-- Infrastructure as Code
-- AWS infrastructure
-- Kubernetes operations
-- GitOps
-- Observability
-- Reliability engineering
-- Disaster recovery
+- A FastAPI backend with deterministic and explainable matching.
+- PostgreSQL persistence, SQLAlchemy, and Alembic migrations.
+- A hardened container and Docker Compose local runtime.
+- GitHub Actions quality, integration, container, security, and Helm gates.
+- Terraform-managed remote state, AWS resources, IAM, and Amazon ECR.
+- Short-lived GitHub Actions authentication to AWS through OpenID Connect.
+- A Helm chart for Kubernetes packaging.
+- An ephemeral Amazon EKS 1.35 network, control plane, and managed node group.
 
-The application functionality remains intentionally focused so the project can
-demonstrate how a service is built, tested, secured, deployed, and operated
-through a production-oriented DevOps lifecycle.
+Only synthetic data is used. Real resumes, personal information, and automated
+job applications are outside the current project scope.
 
-## Current Capabilities
+## Verified Current State
 
-The backend currently supports:
+| Area | Verified state |
+| --- | --- |
+| Application | FastAPI API, deterministic matching, persistence, migrations, and health endpoints implemented |
+| Local runtime | Docker Compose application and PostgreSQL stack validated |
+| CI and DevSecOps | Python, PostgreSQL, container, Trivy, Gitleaks, and Helm checks implemented |
+| Terraform state | Protected, versioned, encrypted S3 remote state implemented |
+| AWS delivery identity | GitHub OIDC trust restricted to this repository's `main` branch |
+| Container registry | Amazon ECR repository and immutable commit-SHA publishing implemented |
+| Kubernetes packaging | Helm chart linting and rendering implemented in CI |
+| EKS network | Dedicated VPC, Internet Gateway, two public subnets, routing, and security groups created |
+| EKS control plane | Amazon EKS 1.35 control plane created and reported `ACTIVE` |
+| EKS compute | One On-Demand `t3.medium` AL2023 managed node created and reported `ACTIVE` |
+| Cluster health | Node reported `Ready`; VPC CNI, CoreDNS, and kube-proxy pods reported healthy |
+| Terraform reconciliation | Post-deployment plan reported no changes |
+| Workload on EKS | Not deployed |
 
-- Synthetic job and candidate profiles.
-- Deterministic and explainable job matching.
-- Skill normalization before comparison and persistence.
-- PostgreSQL persistence using SQLAlchemy.
-- Database schema management with Alembic.
-- Candidate profile reuse without duplicate profile IDs.
-- Liveness and database readiness endpoints.
-- Unit and PostgreSQL integration testing.
-- Docker-based local runtime.
-- Automated CI validation with GitHub Actions.
-- Secret scanning with Gitleaks.
-- Vulnerability and configuration scanning with Trivy.
-- Protected `main` branch with required CI checks.
+The live AWS validation proves the infrastructure foundation, not application
+availability on EKS. The cluster is a temporary development environment and may
+be destroyed between learning or validation sessions to control cost.
 
-Only synthetic data is used.
+## Current Platform Architecture
 
-Real resumes, personal information, and automated job applications are outside
-the current project scope.
+This diagram separates the working local application, the implemented delivery
+controls, and the provisioned AWS foundation from the next deployment step.
 
-## Current Architecture
+```mermaid
+flowchart LR
+    USER["API client"]
+
+    subgraph LOCAL["Verified local application runtime"]
+        API["FastAPI API"]
+        MATCHER["Matching service"]
+        ORM["SQLAlchemy"]
+        DB[("PostgreSQL")]
+        MIGRATIONS["Alembic migrations"]
+
+        API --> MATCHER
+        API --> ORM
+        ORM --> DB
+        MIGRATIONS --> DB
+    end
+
+    subgraph DELIVERY["Implemented delivery controls"]
+        GH["GitHub repository"]
+        CI["GitHub Actions gates"]
+        OIDC["GitHub OIDC"]
+        ECR["Amazon ECR"]
+        HELM["Validated Helm chart"]
+
+        GH --> CI
+        CI --> OIDC
+        OIDC --> ECR
+        CI --> HELM
+    end
+
+    subgraph AWS["Verified ephemeral AWS foundation"]
+        TF["Terraform"]
+        EKS["Amazon EKS 1.35"]
+        NODE["Managed node group"]
+
+        TF --> EKS
+        EKS --> NODE
+    end
+
+    USER --> API
+    ECR -. "image available; not deployed" .-> EKS
+    HELM -. "deployment is next" .-> EKS
+```
+
+The application currently runs through Docker Compose. PostgreSQL is its local
+runtime database, while isolated automated tests may use SQLite when an external
+database is not required.
+
+## CI/CD and Image Publishing Flow
+
+Pull requests to `main` must pass the repository's quality and security gates.
+Image publishing occurs only after code reaches `main` and all required jobs
+succeed.
+
+```mermaid
+flowchart LR
+    DEV["Developer"] --> PR["Pull request to main"]
+    PR --> QUALITY["Python quality and tests"]
+    PR --> PG["PostgreSQL integration"]
+    PR --> IMAGE["Container build and runtime checks"]
+    PR --> SECURITY["Trivy and Gitleaks"]
+    PR --> HELM["Helm lint and render"]
+
+    QUALITY --> MERGE["Protected main branch"]
+    PG --> MERGE
+    IMAGE --> MERGE
+    SECURITY --> MERGE
+    HELM --> MERGE
+
+    MERGE --> OIDC["Short-lived GitHub OIDC session"]
+    OIDC --> BUILD["Build and scan image"]
+    BUILD --> ECR["Push commit-SHA tag to Amazon ECR"]
+    ECR -. "future deployment" .-> EKS["Amazon EKS"]
+```
+
+### Enforced CI and security controls
+
+- Dependency compatibility, Ruff linting and formatting, and fast tests.
+- PostgreSQL integration testing after Alembic migrations.
+- Docker Compose validation, image build, health checks, and non-root runtime verification.
+- Trivy filesystem, configuration, dependency, and final-image scanning.
+- Gitleaks repository and history scanning.
+- Strict Helm linting and manifest rendering.
+- Protected `main` branch with required status checks and pull requests.
+- Pinned GitHub Actions revisions and restricted workflow permissions.
+- ECR publication by immutable Git commit SHA after successful `main` validation.
+
+GitHub Actions does not use long-lived AWS access keys. Its IAM trust policy
+accepts the expected audience and only the `main` branch subject for this
+repository. The publishing policy is limited to ECR authentication and image
+upload operations for the application repository.
+
+## AWS and EKS Infrastructure
+
+Terraform separates the persistent AWS foundation from the disposable EKS
+development environment.
 
 ```mermaid
 flowchart TB
-    CLIENT["API Client"] --> API["FastAPI"]
+    subgraph STATE["Terraform state foundation"]
+        S3[("Versioned encrypted S3 state")]
+        LOCK["State locking"]
+    end
 
-    API --> MATCHER["Matching Service"]
-    API --> REPOSITORY["Repository Layer"]
+    subgraph DELIVERY_AWS["Persistent delivery foundation"]
+        PROVIDER["GitHub OIDC provider"]
+        ROLE["Least-privilege ECR publisher role"]
+        REGISTRY["Amazon ECR"]
 
-    REPOSITORY --> ORM["SQLAlchemy ORM"]
-    ORM --> DATABASE[("PostgreSQL")]
+        PROVIDER --> ROLE
+        ROLE --> REGISTRY
+    end
 
-    ALEMBIC["Alembic"] --> DATABASE
+    subgraph VPC["Ephemeral EKS VPC 10.20.0.0/16"]
+        IGW["Internet Gateway"]
+        RT["Public route table"]
+        SUBNET_A["Public subnet<br/>us-east-1a"]
+        SUBNET_B["Public subnet<br/>us-east-1b"]
 
-    COMPOSE["Docker Compose"] --> API
-    COMPOSE --> DATABASE
+        IGW --> RT
+        RT --> SUBNET_A
+        RT --> SUBNET_B
 
-    DEVELOPER["Developer"] --> PR["Pull Request"]
-    PR --> CI["GitHub Actions"]
+        subgraph CLUSTER["Amazon EKS 1.35"]
+            API["Managed control plane<br/>public /32 restriction + private access"]
+            ACCESS["EKS API access entry"]
+            NODEGROUP["Managed node group<br/>1 x On-Demand t3.medium<br/>AL2023"]
 
-    CI --> QUALITY["Python Quality"]
-    CI --> INTEGRATION["PostgreSQL Integration"]
-    CI --> DOCKER["Docker Image Validation"]
-    CI --> TRIVY["Trivy Security Scanning"]
-    CI --> GITLEAKS["Gitleaks Secret Scanning"]
+            ACCESS --> API
+            API --> NODEGROUP
+        end
+
+        SUBNET_A --> API
+        SUBNET_B --> API
+        SUBNET_A --> NODEGROUP
+        SUBNET_B --> NODEGROUP
+    end
+
+    S3 --> DELIVERY_AWS
+    S3 --> VPC
+    LOCK --> S3
+    REGISTRY -. "image source after workload deployment" .-> NODEGROUP
 ```
 
-The application currently runs locally through Docker Compose.
+### Verified EKS configuration
 
-PostgreSQL is the runtime database, while isolated automated tests may use
-SQLite where an external database is not required.
+| Property | Value |
+| --- | --- |
+| Environment | Ephemeral development |
+| AWS Region | `us-east-1` |
+| Kubernetes version | `1.35` |
+| VPC CIDR | `10.20.0.0/16` |
+| Subnets | Two public subnets across `us-east-1a` and `us-east-1b` |
+| API access | Private access enabled; public access restricted to one administrator `/32` CIDR |
+| Authentication | EKS API authentication mode with an explicit access entry |
+| Node group capacity | One On-Demand node, minimum/desired/maximum `1/1/1` |
+| Instance and OS | `t3.medium`, `AL2023_x86_64_STANDARD` |
+| Validation | Control plane and node group `ACTIVE`; node `Ready`; system pods healthy |
+| Drift check | Terraform reported no changes after deployment |
 
-AWS and Kubernetes infrastructure will be introduced in the next delivery
-stages.
+## Kubernetes and Helm Packaging
 
-## Technology Stack
+The chart under `deploy/helm/ai-job-platform` currently defines:
 
-| Area | Technology | Status |
-| --- | --- | --- |
-| API | FastAPI | Implemented |
-| Validation | Pydantic | Implemented |
-| Matching | Deterministic Python service | Implemented |
-| Persistence | SQLAlchemy 2 | Implemented |
-| Migrations | Alembic | Implemented |
-| Runtime database | PostgreSQL with Psycopg | Implemented |
-| Testing | Pytest | Implemented |
-| Code quality | Ruff | Implemented |
-| Containers | Docker | Implemented |
-| Local orchestration | Docker Compose | Implemented |
-| CI | GitHub Actions | Implemented |
-| Secret scanning | Gitleaks | Implemented |
-| Vulnerability scanning | Trivy | Implemented |
-| Branch protection | GitHub Rulesets | Implemented |
-| Infrastructure as Code | Terraform | Next |
-| Cloud platform | AWS | Next |
-| Container registry | Amazon ECR | Planned |
-| Kubernetes | Local Kubernetes and Amazon EKS | Planned |
-| Packaging | Helm | Planned |
-| GitOps | Argo CD | Planned |
-| Observability | Prometheus and Grafana | Planned |
-| Reliability | SRE and failure testing | Planned |
-| Disaster recovery | Backup and restore validation | Planned |
+- A Deployment, ClusterIP Service, and dedicated ServiceAccount.
+- Configurable image repository and tag.
+- A required existing Kubernetes Secret reference for `DATABASE_URL`.
+- Liveness and readiness probes.
+- Non-root execution, runtime-default seccomp, dropped Linux capabilities,
+  disabled privilege escalation, and a read-only root filesystem.
+- An explicit resource configuration interface without invented default requests
+  or limits; values must be based on measured workload behavior.
+
+CI proves that the chart lints and renders. It does not prove that the chart has
+been installed into EKS or that the application is reachable there.
 
 ## API Endpoints
 
@@ -124,434 +241,185 @@ stages.
 | `POST` | `/api/v1/matches/evaluate` | Evaluates and persists a match |
 | `GET` | `/docs` | Opens the interactive OpenAPI documentation |
 
-## Match Request Example
-
-```bash
-curl -X POST http://127.0.0.1:8000/api/v1/matches/evaluate \
-  -H "Content-Type: application/json" \
-  -d '{
-    "job": {
-      "title": "Junior DevOps Engineer",
-      "required_skills": ["AWS", "Docker", "Kubernetes"]
-    },
-    "candidate": {
-      "profile_id": "candidate-001",
-      "skills": ["AWS", "Docker"]
-    }
-  }'
-```
-
-The response includes:
-
-- `score_percent`
-- `matched_skills`
-- `missing_skills`
-- `explanation`
-
-Skills are normalized before comparison and persistence, so values such as
-`AWS`, `aws`, and ` AWS ` are treated consistently.
-
-## Local Development with Docker
+## Local Development
 
 Docker Compose is the primary local runtime environment.
-
-### 1. Configure local environment variables
 
 ```bash
 export POSTGRES_DB=ai_job_platform
 export POSTGRES_USER=postgres
 export POSTGRES_PASSWORD=local-development-only
-```
 
-These credentials are intended only for local development.
-
-Do not reuse them for production or cloud environments.
-
-### 2. Validate the Compose configuration
-
-```bash
 docker compose config --quiet
-```
-
-### 3. Build and start the stack
-
-```bash
 docker compose up --build --detach --wait
-```
-
-### 4. Verify application health
-
-```bash
 curl --fail http://127.0.0.1:8000/health/live
-```
-
-```bash
 curl --fail http://127.0.0.1:8000/health/ready
 ```
 
-The interactive API documentation is available at:
+The interactive API documentation is available at
+`http://127.0.0.1:8000/docs`.
 
-```text
-http://127.0.0.1:8000/docs
-```
-
-### 5. Stop the environment
+Stop the environment without deleting its database volume:
 
 ```bash
 docker compose down
 ```
 
-To also remove the local PostgreSQL volume:
+To intentionally delete the local PostgreSQL volume as well:
 
 ```bash
 docker compose down --volumes
 ```
 
-## Local Python Development
+The example credentials above are for local development only. Do not reuse
+them in CI, Kubernetes, or AWS.
 
-A Python virtual environment can also be used for application development and
-testing.
-
-### Create the environment
+### Local Python checks
 
 ```bash
 python -m venv .venv
 source .venv/bin/activate
-```
-
-Install development dependencies:
-
-```bash
-python -m pip install --upgrade pip
 python -m pip install --requirement requirements-dev.txt
+python -m pip check
+ruff check .
+ruff format --check .
+python -m pytest -m "not integration"
 ```
 
-## Database Migrations
-
-Alembic manages database schema changes.
-
-Apply all migrations with:
+Apply database migrations with:
 
 ```bash
 python -m alembic upgrade head
 ```
 
-The PostgreSQL connection format is:
+## Technology Status
 
-```text
-postgresql+psycopg://USER:PASSWORD@HOST:5432/DATABASE
+| Area | Technology | Status |
+| --- | --- | --- |
+| API and persistence | FastAPI, SQLAlchemy, Alembic, PostgreSQL | Implemented and tested |
+| Containers | Docker and Docker Compose | Implemented and tested |
+| CI and security | GitHub Actions, Ruff, Pytest, Trivy, Gitleaks | Implemented |
+| Infrastructure as Code | Terraform | Implemented for current AWS foundation |
+| Remote state | Amazon S3 with encryption, versioning, public-access blocking, and locking | Implemented |
+| AWS authentication | GitHub Actions OIDC and IAM | Implemented |
+| Container registry | Amazon ECR | Implemented and integrated with CI |
+| Kubernetes packaging | Helm | Implemented and CI-validated |
+| Kubernetes platform | Ephemeral Amazon EKS 1.35 | Foundation deployed and verified |
+| Workload deployment | Helm installation into EKS | Next |
+| GitOps | Argo CD or equivalent | Planned, not implemented |
+| Observability | Metrics, logs, dashboards, and alerting | Planned, not implemented |
+| SRE | SLI, SLO, error budget, and failure testing | Planned, not implemented |
+| Disaster recovery | Backup, restore, failover, and recovery tests | Planned, not implemented |
+
+## Delivery Roadmap
+
+```mermaid
+flowchart LR
+    P0["Phase 0<br/>Foundation and governance<br/>Completed"] --> P1["Phase 1<br/>Application and persistence<br/>Completed"]
+    P1 --> P2["Phase 2<br/>Containers and local runtime<br/>Completed"]
+    P2 --> P3["Phase 3<br/>CI and DevSecOps<br/>Completed"]
+    P3 --> P4["Phase 4<br/>Terraform, AWS, OIDC, ECR, Helm<br/>Completed"]
+    P4 --> P5A["Phase 5A<br/>EKS foundation<br/>Verified"]
+    P5A --> P5B["Phase 5B<br/>Workload deployment<br/>Next"]
+    P5B --> P6["Phase 6<br/>GitOps<br/>Planned"]
+    P6 --> P7["Phase 7<br/>Observability and SRE<br/>Planned"]
+    P7 --> P8["Phase 8<br/>Reliability and DR<br/>Planned"]
 ```
 
-## Quality Checks
+### Completed and verified
 
-The same core checks used during development are enforced through CI.
+- [x] Project foundation, governance, API, matching, and persistence.
+- [x] Docker containerization and local PostgreSQL runtime.
+- [x] GitHub Actions CI, security scanning, and branch protection.
+- [x] Terraform AWS foundation and protected remote state.
+- [x] GitHub Actions OIDC and Amazon ECR image publishing.
+- [x] Kubernetes Helm packaging and CI validation.
+- [x] Ephemeral EKS network and restricted control-plane access.
+- [x] EKS 1.35 managed control plane and managed node group.
+- [x] Live cluster validation and post-deployment Terraform drift check.
 
-### Dependency compatibility
+### Next
 
-```bash
-python -m pip check
-```
+- [ ] Provide the application database dependency for the development cluster.
+- [ ] Configure environment-specific Helm values without committing secrets.
+- [ ] Deploy the immutable ECR image to EKS through Helm.
+- [ ] Validate rollout, probes, service discovery, application behavior, and rollback.
+- [ ] Capture repeatable deployment evidence before closing the workload phase.
 
-### Ruff linting
+### Planned
 
-```bash
-ruff check .
-```
+- [ ] Implement GitOps only after the manual Helm delivery path is verified.
+- [ ] Add metrics, centralized logs, dashboards, alerts, and operational runbooks.
+- [ ] Define measured resource requests and limits, SLI/SLO targets, and error budgets.
+- [ ] Test failure handling, backup restoration, recovery objectives, and teardown.
 
-### Ruff formatting
+A phase is complete only after implementation, validation, and evidence review.
 
-```bash
-ruff format --check .
-```
+## Production-Readiness Caveats
 
-### Fast test suite
+[Warning] The repository demonstrates a verified development foundation; it is
+not a production platform. Current limitations include:
 
-```bash
-python -m pytest -m "not integration"
-```
+- The application workload and its PostgreSQL dependency are not deployed to EKS.
+- The node group contains one node, so it provides no workload redundancy.
+- Worker nodes use public subnets; private worker networking and controlled
+  egress are not implemented.
+- The public Kubernetes API endpoint is restricted to one administrator `/32`,
+  but a private-only operational access path is not implemented.
+- Pod resource requests and limits are intentionally unset until measurements exist.
+- No ingress controller, DNS, TLS certificate, or external traffic path exists.
+- No Kubernetes NetworkPolicy or application-specific cluster RBAC is complete.
+- Secret injection for the cluster is designed but not operationally integrated.
+- GitOps, deployment promotion, automated rollback, and progressive delivery are
+  not implemented.
+- Centralized metrics, logs, traces, dashboards, alerts, SLI/SLOs, and error
+  budgets are not implemented.
+- Backup, restore, RPO/RTO, failover, and disaster-recovery testing are not
+  implemented.
+- Multi-environment isolation, autoscaling, disruption budgets, and topology
+  spread have not been validated.
+- Cost controls rely on the environment remaining temporary; ongoing cloud cost
+  must be reviewed before every deployment window.
 
-PostgreSQL integration tests are executed separately in CI against a disposable
-PostgreSQL service.
+## Security and Cost Boundaries
 
-## CI and Security Gates
-
-Pull requests targeting `main` are validated through GitHub Actions before they
-can be merged.
-
-Required checks currently include:
-
-- `Python Quality`
-- `PostgreSQL Integration`
-- `Docker Image`
-- `Trivy Filesystem`
-- `Secret Scan`
-
-### Python Quality
-
-Validates:
-
-- Dependency compatibility
-- Ruff linting
-- Ruff formatting
-- Fast automated tests
-
-### PostgreSQL Integration
-
-Validates the real PostgreSQL integration path by:
-
-- Starting a disposable PostgreSQL service.
-- Applying Alembic migrations.
-- Running PostgreSQL-specific integration tests.
-
-### Docker Image
-
-Validates the containerized runtime by:
-
-- Validating Docker Compose configuration.
-- Building the application image.
-- Scanning the final image with Trivy.
-- Starting the application stack.
-- Checking liveness and readiness endpoints.
-- Verifying non-root execution.
-- Cleaning disposable resources after validation.
-
-### Gitleaks
-
-Gitleaks scans the repository and Git history for committed secrets.
-
-Real credentials must never be introduced merely to test secret detection.
-
-A genuine leaked credential must be revoked or rotated and investigated rather
-than bypassing the security gate.
-
-### Trivy Filesystem Scan
-
-Trivy scans the repository for:
-
-- Vulnerable application dependencies.
-- Dockerfile and configuration misconfigurations.
-
-HIGH and CRITICAL findings are treated as blocking security findings according
-to the configured policy.
-
-### Trivy Container Image Scan
-
-The final runtime image is scanned for:
-
-- Operating system vulnerabilities.
-- Application dependency vulnerabilities.
-- Embedded secrets.
-
-Fixable HIGH and CRITICAL image vulnerabilities block CI.
-
-Unfixed upstream base-image findings are monitored instead of being hidden by a
-blanket repository-wide ignore policy.
-
-## Container Security Controls
-
-The application container currently uses several defensive controls:
-
-- Multi-stage Docker build.
-- Dedicated non-root runtime user.
-- Read-only application root filesystem through Docker Compose.
-- `no-new-privileges`.
-- Explicit health checks.
-- Local-only application port binding.
-- Runtime validation through CI.
-- Trivy image scanning before container runtime validation.
-
-## Main Branch Protection
-
-The `main` branch is protected through a GitHub repository ruleset.
-
-Current controls include:
-
-- Pull requests required before merging.
-- Required CI status checks.
-- Branch must be up to date before merging.
-- Force pushes blocked.
-- Branch deletion blocked.
-- No bypass actors configured.
-- Merge and squash merge methods allowed.
-
-This prevents code from bypassing the established quality and security gates.
-
-## Security Policy
-
-Security reporting requirements and project security expectations are defined
-in:
-
-[`SECURITY.md`](SECURITY.md)
-
-Implementation details for CI security gates, secret scanning, vulnerability
-scanning, branch protection, incident response, and rollback procedures are
-documented in:
-
-[`docs/security.md`](docs/security.md)
+- Never commit credentials, state files, plan files, Kubernetes Secrets, or real
+  candidate data.
+- Use short-lived AWS sessions and least-privilege IAM.
+- Treat HIGH and CRITICAL actionable security findings as blocking.
+- Estimate chargeable resources before deployment and verify teardown afterward.
+- Preserve and protect Terraform state; review every plan before applying it.
+- Do not describe a backup as recovery until restoration is tested.
+- Do not describe the platform as production-ready without validated security,
+  reliability, observability, recovery, operations, and cost controls.
 
 ## Repository Structure
 
 ```text
 .
-├── .github/
-│   └── workflows/
-│       └── quality.yml
+├── .github/workflows/quality.yml
 ├── alembic/
-│   ├── versions/
-│   ├── env.py
-│   └── script.py.mako
 ├── app/
-│   ├── api/
-│   ├── core/
-│   ├── db/
-│   ├── models/
-│   ├── repositories/
-│   ├── schemas/
-│   ├── services/
-│   └── main.py
+├── deploy/helm/ai-job-platform/
 ├── docs/
-│   ├── adr/
-│   ├── charter.md
-│   └── security.md
+├── infra/
+│   ├── bootstrap/terraform-state/
+│   ├── eks-dev/
+│   └── terraform/
 ├── scripts/
-│   └── start.sh
 ├── tests/
-│   ├── conftest.py
-│   ├── test_db_connection.py
-│   ├── test_health.py
-│   └── test_matches.py
-├── .dockerignore
-├── .gitignore
-├── alembic.ini
 ├── compose.yaml
 ├── Dockerfile
-├── pyproject.toml
-├── requirements-dev.txt
-├── requirements.txt
-├── SECURITY.md
-└── README.md
+├── README.md
+└── SECURITY.md
 ```
 
-## Delivery Roadmap
+Security expectations are defined in [`SECURITY.md`](SECURITY.md), with
+implementation details in [`docs/security.md`](docs/security.md). Architecture
+decisions are stored under [`docs/adr/`](docs/adr/).
 
-### Completed
-
-- [x] Phase 0 - Project foundation and governance
-- [x] Phase 1 - FastAPI application baseline
-- [x] Phase 1 - Deterministic job matching
-- [x] Phase 1 - Persistence models and migrations
-- [x] Phase 1 - Liveness, readiness, and automated testing
-- [x] Phase 2 - Docker containerization
-- [x] Phase 2 - Local PostgreSQL runtime
-- [x] Phase 2 - Container health and runtime validation
-- [x] Phase 3 - GitHub Actions CI quality gates
-- [x] Phase 3 - Gitleaks secret scanning
-- [x] Phase 3 - Trivy filesystem scanning
-- [x] Phase 3 - Trivy container image scanning
-- [x] Phase 3 - Protected `main` branch and required checks
-- [x] Phase 3 - Security policy and operational security documentation
-
-### Next
-
-- [ ] Phase 4 - Terraform and AWS foundation
-
-### Planned
-
-- [ ] Phase 5 - Local Kubernetes baseline
-- [ ] Phase 6 - Helm packaging and local GitOps
-- [ ] Phase 7 - Temporary Amazon EKS environment
-- [ ] Phase 8 - Observability and SRE controls
-- [ ] Phase 9 - Reliability and disaster recovery
-- [ ] Phase 10 - Portfolio evidence and interview documentation
-
-A phase is considered complete only after its implementation, validation, and
-required evidence have been reviewed.
-
-## Planned Cloud Delivery Flow
-
-```mermaid
-flowchart TB
-    DEV["Developer"] --> PR["Protected GitHub Pull Request"]
-    PR --> CI["CI Quality and Security Gates"]
-
-    CI --> IMAGE["Validated Container Image"]
-
-    IMAGE --> ECR["Amazon ECR"]
-
-    CI --> GITOPS["GitOps Update"]
-    GITOPS --> ARGO["Argo CD"]
-    ARGO --> EKS["Amazon EKS"]
-```
-
-The AWS implementation is planned to use short-lived authentication through
-GitHub Actions OpenID Connect rather than long-lived AWS access keys.
-
-## Phase 4 Direction
-
-The next workstream introduces the AWS and Terraform infrastructure foundation.
-
-Planned areas include:
-
-- Terraform project structure.
-- Remote Terraform state.
-- State locking and recovery considerations.
-- AWS authentication.
-- GitHub Actions OpenID Connect.
-- Least-privilege IAM.
-- Amazon ECR.
-- Network foundation.
-- Cost controls.
-- Resource teardown procedures.
-- Preparation for Amazon EKS.
-
-Cloud infrastructure will not be considered complete until its deployment and
-destruction paths have both been validated.
-
-## Security and Cost Boundaries
-
-- Secrets must not be committed to Git, container images, logs, or Terraform.
-- Real candidate or personal data must not be used.
-- AWS authentication will use short-lived credentials.
-- IAM policies should follow least privilege.
-- Security findings must not be silently ignored.
-- Cloud resources require an estimated cost before deployment.
-- Temporary infrastructure must have a documented teardown procedure.
-- Terraform state must not contain unmanaged sensitive information.
-- Backups are not considered successful until restoration has been tested.
-
-## Engineering Principles
-
-The project follows these principles as it evolves:
-
-- Infrastructure as Code
-- Automation First
-- Security by Default
-- Least Privilege
-- Immutable and reproducible delivery
-- Observability by Default
-- Failure-aware architecture
-- Documented rollback
-- Cost Awareness
-- No portfolio claim without implementation evidence
-
-## Documentation
-
-Architecture decisions and project boundaries are stored under `docs/`.
-
-Security implementation details are documented in:
-
-```text
-docs/security.md
-```
-
-Architecture Decision Records are stored under:
-
-```text
-docs/adr/
-```
-
-Documentation is updated as implementation progresses and should not claim
-unfinished infrastructure or operational controls as completed.
+Documentation is updated as implementation progresses and must not claim
+unfinished infrastructure or operational controls as complete.
 
 ## License
 
