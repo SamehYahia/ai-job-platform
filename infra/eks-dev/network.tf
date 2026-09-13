@@ -24,6 +24,9 @@ resource "aws_subnet" "public" {
   cidr_block        = each.value.cidr_block
   availability_zone = each.value.availability_zone
 
+  # Public worker networking avoids a continuously billed NAT gateway in this
+  # temporary development environment. It is not the production target design.
+  # trivy:ignore:AWS-0164
   map_public_ip_on_launch = true
 
   tags = {
