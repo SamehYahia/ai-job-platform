@@ -98,3 +98,8 @@ variable "public_subnets" {
     }
   }
 }
+variable "node_instance_type" {
+  description = "EC2 instance type used by the ephemeral EKS managed node group."
+  type        = string
+  default     = "t3.medium"
+}
