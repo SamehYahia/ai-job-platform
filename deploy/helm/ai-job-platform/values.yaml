@@ -49,3 +49,7 @@ probes:
     failureThreshold: 3
 
 resources: {}
+
+migrations:
+  enabled: true
+  activeDeadlineSeconds: 300

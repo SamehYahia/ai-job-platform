@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>AI Job Platform Demo</title>
+    <style>
+      :root { color-scheme: dark; font-family: system-ui, sans-serif; }
+      body { margin: 0; background: #0b1020; color: #e8ecf4; }
+      main { width: min(920px, calc(100% - 2rem)); margin: 3rem auto; }
+      header, section { background: #151c31; border: 1px solid #29334f; border-radius: 14px; padding: 1.5rem; }
+      header { margin-bottom: 1rem; }
+      h1, h2 { margin-top: 0; }
+      p { color: #aeb8cc; }
+      form { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+      label { display: grid; gap: .45rem; font-weight: 650; }
+      .wide { grid-column: 1 / -1; }
+      input { border: 1px solid #3a4667; border-radius: 8px; background: #0d1426; color: inherit; padding: .75rem; }
+      button { border: 0; border-radius: 8px; background: #66e3b4; color: #082017; padding: .8rem 1rem; font-weight: 750; cursor: pointer; }
+      button:disabled { opacity: .55; cursor: wait; }
+      #result { margin-top: 1rem; display: none; }
+      .score { font-size: 2.4rem; font-weight: 800; color: #66e3b4; }
+      .error { color: #ff9b9b; }
+      code { color: #d4dcff; }
+      @media (max-width: 650px) { form { grid-template-columns: 1fr; } }
+    </style>
+  </head>
+  <body>
+    <main>
+      <header>
+        <h1>AI Job Platform</h1>
+        <p>Deterministic, explainable skill matching. This demo uses synthetic data only.</p>
+      </header>
+      <section>
+        <h2>Evaluate a candidate</h2>
+        <form id="match-form">
+          <label>Job title<input id="title" value="Junior DevOps Engineer" maxlength="200" required></label>
+          <label>Candidate ID<input id="profile-id" value="demo-candidate-001" pattern="[A-Za-z0-9_-]+" maxlength="100" required></label>
+          <label>Required skills, comma separated<input id="required-skills" value="AWS, Docker, Kubernetes, Terraform" required></label>
+          <label>Candidate skills, comma separated<input id="candidate-skills" value="AWS, Docker, Python"></label>
+          <button class="wide" id="submit" type="submit">Calculate match</button>
+        </form>
+        <div id="result" aria-live="polite"></div>
+      </section>
+    </main>
+    <script>
+      const form = document.querySelector("#match-form");
+      const result = document.querySelector("#result");
+      const button = document.querySelector("#submit");
+      const skills = (id) => document.querySelector(id).value.split(",").map((item) => item.trim()).filter(Boolean);
+      const escapeHtml = (value) => {
+        const element = document.createElement("span");
+        element.textContent = String(value);
+        return element.innerHTML;
+      };
+
+      form.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        button.disabled = true;
+        result.style.display = "block";
+        result.innerHTML = "Evaluating…";
+        const payload = {
+          job: { title: document.querySelector("#title").value, required_skills: skills("#required-skills") },
+          candidate: { profile_id: document.querySelector("#profile-id").value, skills: skills("#candidate-skills") }
+        };
+
+        try {
+          const response = await fetch("/api/v1/matches/evaluate", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload)
+          });
+          const data = await response.json();
+          if (!response.ok) throw new Error(data.detail?.[0]?.msg || "Evaluation failed");
+          result.innerHTML = `<div class="score">${escapeHtml(data.score_percent)}% match</div>
+            <p>${escapeHtml(data.explanation)}</p>
+            <p><strong>Matched:</strong> <code>${escapeHtml(data.matched_skills.join(", ") || "none")}</code></p>
+            <p><strong>Missing:</strong> <code>${escapeHtml(data.missing_skills.join(", ") || "none")}</code></p>`;
+        } catch (error) {
+          result.innerHTML = `<p class="error">${escapeHtml(error.message)}</p>`;
+        } finally {
+          button.disabled = false;
+        }
+      });
+    </script>
+  </body>
+</html>
