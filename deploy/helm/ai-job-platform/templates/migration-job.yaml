@@ -1,0 +1,71 @@
+{{- if .Values.migrations.enabled }}
+apiVersion: batch/v1
+kind: Job
+
+metadata:
+  name: {{ include "ai-job-platform.fullname" . }}-migrate
+  namespace: {{ .Release.Namespace }}
+
+  labels:
+    {{- include "ai-job-platform.labels" . | nindent 4 }}
+    app.kubernetes.io/component: migration
+
+  annotations:
+    "helm.sh/hook": pre-install,pre-upgrade
+    "helm.sh/hook-weight": "-10"
+    "helm.sh/hook-delete-policy": before-hook-creation
+
+spec:
+  backoffLimit: 1
+  activeDeadlineSeconds: {{ .Values.migrations.activeDeadlineSeconds }}
+
+  template:
+    metadata:
+      labels:
+        {{- include "ai-job-platform.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: migration
+
+    spec:
+      automountServiceAccountToken: false
+
+      restartPolicy: Never
+
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+
+      containers:
+        - name: migrate
+
+          {{- if or (eq .Values.image.repository "<your-ecr-repository-uri>") (eq .Values.image.tag "<your-built-image-tag>") }}
+          {{- fail "image.repository and image.tag must be real image values, not placeholders" }}
+          {{- end }}
+          image: "{{ required "image.repository is required" .Values.image.repository }}:{{ required "image.tag is required" .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+
+          command:
+            - python
+            - -m
+            - alembic
+
+          args:
+            - upgrade
+            - head
+
+          env:
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.database.existingSecret }}
+                  key: {{ .Values.database.secretKey }}
+
+          securityContext:
+            {{- toYaml .Values.containerSecurityContext | nindent 12 }}
+
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+
+      volumes:
+        - name: tmp
+          emptyDir: {}
+{{- end }}

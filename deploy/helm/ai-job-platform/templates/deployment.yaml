@@ -27,7 +27,10 @@ spec:
       containers:
         - name: api
 
-          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          {{- if or (eq .Values.image.repository "<your-ecr-repository-uri>") (eq .Values.image.tag "<your-built-image-tag>") }}
+          {{- fail "image.repository and image.tag must be real image values, not placeholders" }}
+          {{- end }}
+          image: "{{ required "image.repository is required" .Values.image.repository }}:{{ required "image.tag is required" .Values.image.tag }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
 
           securityContext:

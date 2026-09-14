@@ -2,10 +2,10 @@
 
 [![CI Quality Gates](https://github.com/SamehYahia/ai-job-platform/actions/workflows/quality.yml/badge.svg)](https://github.com/SamehYahia/ai-job-platform/actions/workflows/quality.yml)
 
-> **Status:** Phase 5 in progress - the AWS and EKS foundation is verified; workload deployment is next<br>
-> **Current state:** FastAPI and PostgreSQL, secure CI, GitHub OIDC and ECR publishing, Helm packaging, and a Terraform-managed ephemeral Amazon EKS 1.35 environment<br>
+> **Status:** Phase 5 runtime deployment verified for a same-day demo<br>
+> **Current state:** FastAPI and PostgreSQL, secure CI, GitHub OIDC and ECR publishing, Helm packaging, Terraform-managed ephemeral Amazon EKS 1.35, and a Helm-deployed application workload<br>
 > **Project type:** DevOps-first portfolio project<br>
-> **Production readiness:** Not production-ready - the EKS environment is intentionally temporary and the application has not yet been deployed to it
+> **Production readiness:** Production-oriented demo, not production-ready - the EKS environment is intentionally temporary and still lacks several production controls
 
 ## Overview
 
@@ -25,6 +25,8 @@ The verified platform currently includes:
 - Short-lived GitHub Actions authentication to AWS through OpenID Connect.
 - A Helm chart for Kubernetes packaging.
 - An ephemeral Amazon EKS 1.35 network, control plane, and managed node group.
+- A Helm-deployed EKS workload with an explicit Alembic migration Job.
+- A lightweight GUI for demonstrating explainable matching through the deployed API.
 
 Only synthetic data is used. Real resumes, personal information, and automated
 job applications are outside the current project scope.
@@ -45,16 +47,44 @@ job applications are outside the current project scope.
 | EKS compute | One On-Demand `t3.medium` AL2023 managed node created and reported `ACTIVE` |
 | Cluster health | Node reported `Ready`; VPC CNI, CoreDNS, and kube-proxy pods reported healthy |
 | Terraform reconciliation | Post-deployment plan reported no changes |
-| Workload on EKS | Not deployed |
+| Workload on EKS | Helm release deployed and application rollout verified |
+| Database migration lifecycle | Helm pre-upgrade migration Job completed successfully in 9 seconds |
+| Runtime health | Application Pod and PostgreSQL Pod reported `Running`; health endpoints returned HTTP 200 |
+| Demo GUI | Browser demo served through Kubernetes port-forward and returned an explainable match result |
 
-The live AWS validation proves the infrastructure foundation, not application
-availability on EKS. The cluster is a temporary development environment and may
-be destroyed between learning or validation sessions to control cost.
+The live AWS validation proves the infrastructure foundation and a working
+application deployment path. The cluster is a temporary development environment
+and may be destroyed between learning or validation sessions to control cost.
+
+## Demo Evidence
+
+The final same-day demo validated the deployed workload through Helm, Kubernetes,
+HTTP health checks, and the browser GUI.
+
+| Evidence | Result |
+| --- | --- |
+| Helm release | `ai-job-platform` deployed in namespace `ai-job-platform-dev`, revision `4` |
+| Migration hook | `ai-job-platform-ai-job-platform-migrate` completed `1/1` in `9s` |
+| Application Pod | `Running`, `1/1` ready, `0` restarts |
+| PostgreSQL Pod | `Running`, `1/1` ready, `0` restarts |
+| Service | ClusterIP service on port `80` |
+| Rollout | Deployment successfully rolled out |
+| Health checks | `/health/live` and `/health/ready` returned HTTP `200` |
+| GUI | Match demo returned `66.67%` with matched and missing skills |
+
+Demo assets:
+
+- [Demo presentation](docs/presentation/ai-job-platform-demo-deck.pptx)
+- [GUI match screenshot](docs/assets/demo/gui-match-demo.png)
+- [EKS workloads screenshot](docs/assets/demo/eks-workloads-pods.png)
+- [Runtime validation screenshot](docs/assets/demo/runtime-validation-terminal.png)
+
+![AI Job Platform GUI demo](docs/assets/demo/gui-match-demo.png)
 
 ## Current Platform Architecture
 
-This diagram separates the working local application, the implemented delivery
-controls, and the provisioned AWS foundation from the next deployment step.
+This diagram separates the application, delivery controls, and AWS runtime used
+for the demo deployment.
 
 ```mermaid
 flowchart LR
@@ -96,13 +126,13 @@ flowchart LR
     end
 
     USER --> API
-    ECR -. "image available; not deployed" .-> EKS
-    HELM -. "deployment is next" .-> EKS
+    ECR --> EKS
+    HELM --> EKS
 ```
 
-The application currently runs through Docker Compose. PostgreSQL is its local
-runtime database, while isolated automated tests may use SQLite when an external
-database is not required.
+The application can run locally through Docker Compose and was also deployed to
+EKS for the final demo. PostgreSQL is the runtime database, while isolated
+automated tests may use SQLite when an external database is not required.
 
 ## CI/CD and Image Publishing Flow
 
@@ -128,7 +158,7 @@ flowchart LR
     MERGE --> OIDC["Short-lived GitHub OIDC session"]
     OIDC --> BUILD["Build and scan image"]
     BUILD --> ECR["Push commit-SHA tag to Amazon ECR"]
-    ECR -. "future deployment" .-> EKS["Amazon EKS"]
+    ECR --> EKS["Amazon EKS"]
 ```
 
 ### Enforced CI and security controls
@@ -229,8 +259,11 @@ The chart under `deploy/helm/ai-job-platform` currently defines:
 - An explicit resource configuration interface without invented default requests
   or limits; values must be based on measured workload behavior.
 
-CI proves that the chart lints and renders. It does not prove that the chart has
-been installed into EKS or that the application is reachable there.
+CI proves that the chart lints and renders. It does not prove live cluster
+behavior by itself, so the project also captures runtime evidence from EKS.
+
+For the final demo, Helm installed the chart into EKS and ran the Alembic
+migration as a pre-upgrade hook before completing the application rollout.
 
 ## API Endpoints
 
@@ -239,6 +272,7 @@ been installed into EKS or that the application is reachable there.
 | `GET` | `/health/live` | Confirms that the API process is running |
 | `GET` | `/health/ready` | Confirms that the database accepts queries |
 | `POST` | `/api/v1/matches/evaluate` | Evaluates and persists a match |
+| `GET` | `/` | Opens the lightweight demo GUI |
 | `GET` | `/docs` | Opens the interactive OpenAPI documentation |
 
 ## Local Development
@@ -305,7 +339,9 @@ python -m alembic upgrade head
 | Container registry | Amazon ECR | Implemented and integrated with CI |
 | Kubernetes packaging | Helm | Implemented and CI-validated |
 | Kubernetes platform | Ephemeral Amazon EKS 1.35 | Foundation deployed and verified |
-| Workload deployment | Helm installation into EKS | Next |
+| Workload deployment | Helm installation into EKS | Deployed and verified |
+| Migration lifecycle | Helm pre-upgrade Alembic Job | Implemented and verified |
+| Demo GUI | Static HTML served by FastAPI | Implemented and verified |
 | GitOps | Argo CD or equivalent | Planned, not implemented |
 | Observability | Metrics, logs, dashboards, and alerting | Planned, not implemented |
 | SRE | SLI, SLO, error budget, and failure testing | Planned, not implemented |
@@ -320,7 +356,7 @@ flowchart LR
     P2 --> P3["Phase 3<br/>CI and DevSecOps<br/>Completed"]
     P3 --> P4["Phase 4<br/>Terraform, AWS, OIDC, ECR, Helm<br/>Completed"]
     P4 --> P5A["Phase 5A<br/>EKS foundation<br/>Verified"]
-    P5A --> P5B["Phase 5B<br/>Workload deployment<br/>Next"]
+    P5A --> P5B["Phase 5B<br/>Workload deployment<br/>Verified"]
     P5B --> P6["Phase 6<br/>GitOps<br/>Planned"]
     P6 --> P7["Phase 7<br/>Observability and SRE<br/>Planned"]
     P7 --> P8["Phase 8<br/>Reliability and DR<br/>Planned"]
@@ -337,14 +373,17 @@ flowchart LR
 - [x] Ephemeral EKS network and restricted control-plane access.
 - [x] EKS 1.35 managed control plane and managed node group.
 - [x] Live cluster validation and post-deployment Terraform drift check.
+- [x] ECR image delivery for the demo application image.
+- [x] Helm release deployed to EKS.
+- [x] Alembic migration Job completed before rollout.
+- [x] Application Pod, PostgreSQL Pod, service, health checks, and GUI validated.
 
 ### Next
 
-- [ ] Provide the application database dependency for the development cluster.
-- [ ] Configure environment-specific Helm values without committing secrets.
-- [ ] Deploy the immutable ECR image to EKS through Helm.
-- [ ] Validate rollout, probes, service discovery, application behavior, and rollback.
-- [ ] Capture repeatable deployment evidence before closing the workload phase.
+- [ ] Commit the demo GUI, Helm migration hook, README update, and demo presentation.
+- [ ] Record a short demo video using the captured evidence.
+- [ ] Publish a LinkedIn post that describes the project as production-oriented.
+- [ ] Tear down the temporary EKS environment after evidence is preserved.
 
 ### Planned
 
@@ -357,10 +396,9 @@ A phase is complete only after implementation, validation, and evidence review.
 
 ## Production-Readiness Caveats
 
-[Warning] The repository demonstrates a verified development foundation; it is
-not a production platform. Current limitations include:
+[Warning] The repository demonstrates a verified production-oriented development
+deployment; it is not a production platform. Current limitations include:
 
-- The application workload and its PostgreSQL dependency are not deployed to EKS.
 - The node group contains one node, so it provides no workload redundancy.
 - Worker nodes use public subnets; private worker networking and controlled
   egress are not implemented.
@@ -369,7 +407,6 @@ not a production platform. Current limitations include:
 - Pod resource requests and limits are intentionally unset until measurements exist.
 - No ingress controller, DNS, TLS certificate, or external traffic path exists.
 - No Kubernetes NetworkPolicy or application-specific cluster RBAC is complete.
-- Secret injection for the cluster is designed but not operationally integrated.
 - GitOps, deployment promotion, automated rollback, and progressive delivery are
   not implemented.
 - Centralized metrics, logs, traces, dashboards, alerts, SLI/SLOs, and error
