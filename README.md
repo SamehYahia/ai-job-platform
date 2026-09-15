@@ -75,6 +75,9 @@ HTTP health checks, and the browser GUI.
 Demo assets:
 
 - [Demo presentation](docs/presentation/ai-job-platform-demo-deck.pptx)
+- [Project walkthrough and interview guide](docs/project-walkthrough.md)
+- [Project walkthrough PDF](output/pdf/ai-job-platform-project-walkthrough.pdf)
+- [LinkedIn post draft](docs/linkedin-post.md)
 - [GUI match screenshot](docs/assets/demo/gui-match-demo.png)
 - [EKS workloads screenshot](docs/assets/demo/eks-workloads-pods.png)
 - [Runtime validation screenshot](docs/assets/demo/runtime-validation-terminal.png)
